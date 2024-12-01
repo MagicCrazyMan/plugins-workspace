@@ -26,6 +26,7 @@ class PositionOptions {
   var enableHighAccuracy: Boolean = false
   var maximumAge: Long = 0
   var timeout: Long = 10000
+  var gms: Boolean = true
 }
 
 @InvokeArg
@@ -108,7 +109,9 @@ class GeolocationPlugin(private val activity: Activity): Plugin(activity) {
         if (location != null) {
             invoke.resolve(convertLocation(location))
         } else {
-            implementation.sendLocation(args.enableHighAccuracy,
+            implementation.sendLocation(
+                args.enableHighAccuracy,
+                args.gms,
                 { loc -> invoke.resolve(convertLocation(loc)) },
                 { error -> invoke.reject(error) })
         }

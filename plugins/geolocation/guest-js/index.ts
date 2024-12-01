@@ -90,6 +90,12 @@ export type PositionOptions = {
    * Ignored on iOS
    */
   maximumAge: number
+  /**
+   * Uses Google Play Location API or Android Framework Location API to get current position.
+   * Default: true
+   * Only Available for getCurrentPosition on Android.
+   */
+  gms?: boolean
 }
 
 export async function watchPosition(

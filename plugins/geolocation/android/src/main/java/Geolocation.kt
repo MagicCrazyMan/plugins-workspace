@@ -8,6 +8,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
+import android.location.LocationRequest as LocationRequestAndroid
 import android.os.SystemClock
 import androidx.core.location.LocationManagerCompat
 import app.tauri.Logger
@@ -32,7 +33,12 @@ public class Geolocation(private val context: Context) {
     }
 
     @SuppressWarnings("MissingPermission")
-    fun sendLocation(enableHighAccuracy: Boolean, successCallback: (location: Location) -> Unit, errorCallback: (error: String) -> Unit) {
+    fun sendLocation(
+        enableHighAccuracy: Boolean,
+        gms: Boolean,
+        successCallback: (location: Location) -> Unit,
+        errorCallback: (error: String) -> Unit
+    ) {
         val resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
         if (resultCode == ConnectionResult.SUCCESS) {
             val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -46,22 +52,59 @@ public class Geolocation(private val context: Context) {
                     Logger.error("isProviderEnabled failed")
                 }
 
-                val lowPrio = if (networkEnabled) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_LOW_POWER
-                val prio = if (enableHighAccuracy) Priority.PRIORITY_HIGH_ACCURACY else lowPrio
+                if (gms) {
+                    val lowPrio =
+                        if (networkEnabled) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_LOW_POWER
+                    val prio = if (enableHighAccuracy) Priority.PRIORITY_HIGH_ACCURACY else lowPrio
 
-                Logger.error(prio.toString())
+                    Logger.error(prio.toString())
 
-                LocationServices
-                    .getFusedLocationProviderClient(context)
-                    .getCurrentLocation(prio, null)
-                    .addOnFailureListener { e -> e.message?.let { errorCallback(it) } }
-                    .addOnSuccessListener { location ->
-                        if (location == null) {
-                            errorCallback("Location unavailable.")
-                        } else {
-                            successCallback(location)
+                    LocationServices
+                        .getFusedLocationProviderClient(context)
+                        .getCurrentLocation(prio, null)
+                        .addOnFailureListener { e -> e.message?.let { errorCallback(it) } }
+                        .addOnSuccessListener { location ->
+                            if (location == null) {
+                                errorCallback("Location unavailable.")
+                            } else {
+                                successCallback(location)
+                            }
                         }
-                    }
+                } else {
+                    val providers = lm.getAllProviders()
+                    val provider =
+                        if (enableHighAccuracy && providers.contains(LocationManager.GPS_PROVIDER) && lm.isProviderEnabled(
+                                LocationManager.GPS_PROVIDER
+                            )
+                        )
+                            LocationManager.GPS_PROVIDER
+                        else if (providers.contains(LocationManager.FUSED_PROVIDER) && lm.isProviderEnabled(
+                                LocationManager.FUSED_PROVIDER
+                            )
+                        )
+                            LocationManager.FUSED_PROVIDER
+                        else if (providers.contains(LocationManager.NETWORK_PROVIDER) && lm.isProviderEnabled(
+                                LocationManager.NETWORK_PROVIDER
+                            )
+                        )
+                            LocationManager.NETWORK_PROVIDER
+                        else
+                            LocationManager.PASSIVE_PROVIDER
+
+
+                    lm.getCurrentLocation(
+                        provider,
+                        null,
+                        context.getMainExecutor(),
+                        { location ->
+                            if (location == null) {
+                                errorCallback("Location unavailable.")
+                            } else {
+                                successCallback(location)
+                            }
+                        }
+                    );
+                }
             } else {
                 errorCallback("Location disabled.")
             }
@@ -71,7 +114,12 @@ public class Geolocation(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    fun requestLocationUpdates(enableHighAccuracy: Boolean, timeout: Long, successCallback: (location: Location) -> Unit, errorCallback: (error: String) -> Unit) {
+    fun requestLocationUpdates(
+        enableHighAccuracy: Boolean,
+        timeout: Long,
+        successCallback: (location: Location) -> Unit,
+        errorCallback: (error: String) -> Unit
+    ) {
         val resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
         if (resultCode == ConnectionResult.SUCCESS) {
             clearLocationUpdates()
@@ -88,7 +136,8 @@ public class Geolocation(private val context: Context) {
                     Logger.error("isProviderEnabled failed")
                 }
 
-                val lowPrio = if (networkEnabled) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_LOW_POWER
+                val lowPrio =
+                    if (networkEnabled) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_LOW_POWER
                 val prio = if (enableHighAccuracy) Priority.PRIORITY_HIGH_ACCURACY else lowPrio
 
                 Logger.error(prio.toString())
@@ -111,7 +160,11 @@ public class Geolocation(private val context: Context) {
                         }
                     }
 
-                fusedLocationClient?.requestLocationUpdates(locationRequest, locationCallback!!, null)
+                fusedLocationClient?.requestLocationUpdates(
+                    locationRequest,
+                    locationCallback!!,
+                    null
+                )
             } else {
                 errorCallback("Location disabled.")
             }

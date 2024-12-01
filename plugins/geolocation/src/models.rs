@@ -44,6 +44,10 @@ pub struct PositionOptions {
     // TODO: Handle Infinity.
     // TODO: Should be u64+ but specta doesn't like that?
     pub maximum_age: u32,
+    /// Uses Google Play Location API or Android Framework Location API to get current position.
+    /// Default: true
+    /// Only Available for getCurrentPosition on Android.
+    pub gms: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
