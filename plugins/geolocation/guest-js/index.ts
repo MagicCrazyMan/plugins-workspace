@@ -80,7 +80,6 @@ export type PositionOptions = {
   enableHighAccuracy: boolean
   /**
    * The maximum wait time in milliseconds for location updates.
-   * On Android the timeout gets ignored for getCurrentPosition.
    * Ignored on iOS
    */
   timeout: number

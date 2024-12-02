@@ -112,6 +112,7 @@ class GeolocationPlugin(private val activity: Activity): Plugin(activity) {
             implementation.sendLocation(
                 args.enableHighAccuracy,
                 args.gms,
+                args.timeout,
                 { loc -> invoke.resolve(convertLocation(loc)) },
                 { error -> invoke.reject(error) })
         }

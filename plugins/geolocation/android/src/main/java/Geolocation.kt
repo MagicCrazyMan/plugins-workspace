@@ -8,8 +8,9 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
-import android.location.LocationRequest as LocationRequestAndroid
 import android.os.SystemClock
+import android.os.Handler
+import android.os.Looper
 import androidx.core.location.LocationManagerCompat
 import app.tauri.Logger
 import com.google.android.gms.common.ConnectionResult
@@ -36,6 +37,7 @@ public class Geolocation(private val context: Context) {
     fun sendLocation(
         enableHighAccuracy: Boolean,
         gms: Boolean,
+        timeout: Long,
         successCallback: (location: Location) -> Unit,
         errorCallback: (error: String) -> Unit
     ) {
@@ -59,9 +61,16 @@ public class Geolocation(private val context: Context) {
 
                     Logger.error(prio.toString())
 
+                    val cancel = com.google.android.gms.tasks.CancellationTokenSource()
+                    val cancelToken = cancel.getToken()
+                    Handler.createAsync(Looper.getMainLooper()).postDelayed({
+                        cancel.cancel()
+                        errorCallback("Location request timed out.")
+                    }, timeout)
+
                     LocationServices
                         .getFusedLocationProviderClient(context)
-                        .getCurrentLocation(prio, null)
+                        .getCurrentLocation(prio, cancelToken)
                         .addOnFailureListener { e -> e.message?.let { errorCallback(it) } }
                         .addOnSuccessListener { location ->
                             if (location == null) {
@@ -91,10 +100,15 @@ public class Geolocation(private val context: Context) {
                         else
                             LocationManager.PASSIVE_PROVIDER
 
+                    val cancelToken = android.os.CancellationSignal()
+                    Handler.createAsync(Looper.getMainLooper()).postDelayed({
+                        cancelToken.cancel()
+                        errorCallback("Location request timed out.")
+                    }, timeout)
 
                     lm.getCurrentLocation(
                         provider,
-                        null,
+                        cancelToken,
                         context.getMainExecutor(),
                         { location ->
                             if (location == null) {
