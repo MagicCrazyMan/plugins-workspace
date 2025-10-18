@@ -8,6 +8,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
+import android.os.CancellationSignal
 import android.os.SystemClock
 import androidx.core.location.LocationManagerCompat
 import app.tauri.Logger
@@ -19,11 +20,15 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
+import android.os.Handler
+import android.os.Looper
 
 
 public class Geolocation(private val context: Context) {
     private var fusedLocationClient: FusedLocationProviderClient? = null
     private var locationCallback: LocationCallback? = null
+    private val handler = Handler(Looper.getMainLooper())
 
 
     fun isLocationServicesEnabled(): Boolean {
@@ -32,10 +37,17 @@ public class Geolocation(private val context: Context) {
     }
 
     @SuppressWarnings("MissingPermission")
-    fun sendLocation(enableHighAccuracy: Boolean, successCallback: (location: Location) -> Unit, errorCallback: (error: String) -> Unit) {
+    fun sendLocation(
+        enableHighAccuracy: Boolean,
+        useGMS: Boolean,
+        timeout: Long,
+        successCallback: (location: Location) -> Unit,
+        errorCallback: (error: String) -> Unit
+    ) {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        
         val resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
-        if (resultCode == ConnectionResult.SUCCESS) {
-            val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if (useGMS && resultCode == ConnectionResult.SUCCESS) {
 
             if (this.isLocationServicesEnabled()) {
                 var networkEnabled = false
@@ -51,22 +63,94 @@ public class Geolocation(private val context: Context) {
 
                 Logger.error(prio.toString())
 
+                val cts = CancellationTokenSource()
+                val token = cts.getToken()
+
+                // setup timeout handling
+                var isCompleted = false
+                val timeoutRunnable = Runnable {
+                    if (!isCompleted) {
+                        cts.cancel()
+                        errorCallback("Location request timeout after ${timeout}ms")
+                    }
+                }
+                handler.postDelayed(timeoutRunnable, timeout)
+                
                 LocationServices
                     .getFusedLocationProviderClient(context)
-                    .getCurrentLocation(prio, null)
-                    .addOnFailureListener { e -> e.message?.let { errorCallback(it) } }
+                    .getCurrentLocation(prio, token)
+                    .addOnFailureListener { e -> 
+                        handler.removeCallbacks(timeoutRunnable)
+                        if (!isCompleted) {
+                            isCompleted = true
+                            e.message?.let { errorCallback(it) }
+                        }
+                    }
                     .addOnSuccessListener { location ->
-                        if (location == null) {
-                            errorCallback("Location unavailable.")
-                        } else {
-                            successCallback(location)
+                        handler.removeCallbacks(timeoutRunnable)
+                        if (!isCompleted) {
+                            isCompleted = true
+                            if (location == null) {
+                                errorCallback("Location unavailable.")
+                            } else {
+                                successCallback(location)
+                            }
                         }
                     }
             } else {
                 errorCallback("Location disabled.")
             }
         } else {
-            errorCallback("Google Play Services unavailable.")
+            // Fallbacks to Android Framework Location API
+            val providers = lm.getAllProviders()
+            val provider =
+                if (enableHighAccuracy && providers.contains(LocationManager.GPS_PROVIDER) && lm.isProviderEnabled(
+                        LocationManager.GPS_PROVIDER
+                    )
+                )
+                    LocationManager.GPS_PROVIDER
+                else if (providers.contains(LocationManager.FUSED_PROVIDER) && lm.isProviderEnabled(
+                        LocationManager.FUSED_PROVIDER
+                    )
+                )
+                    LocationManager.FUSED_PROVIDER
+                else if (providers.contains(LocationManager.NETWORK_PROVIDER) && lm.isProviderEnabled(
+                        LocationManager.NETWORK_PROVIDER
+                    )
+                )
+                    LocationManager.NETWORK_PROVIDER
+                else
+                    LocationManager.PASSIVE_PROVIDER
+
+            // 创建 CancellationSignal 用于超时取消
+            val cancellationSignal = CancellationSignal()
+            var isCompleted = false
+            
+            // 设置超时取消任务
+            val timeoutRunnable = Runnable {
+                if (!isCompleted) {
+                    cancellationSignal.cancel()
+                    errorCallback("Location request timeout after ${timeout}ms")
+                }
+            }
+            handler.postDelayed(timeoutRunnable, timeout)
+
+            lm.getCurrentLocation(
+                provider,
+                cancellationSignal,
+                context.getMainExecutor(),
+                { location ->
+                    handler.removeCallbacks(timeoutRunnable)
+                    if (!isCompleted) {
+                        isCompleted = true
+                        if (location == null) {
+                            errorCallback("Location unavailable.")
+                        } else {
+                            successCallback(location)
+                        }
+                    }
+                }
+            );
         }
     }
 

@@ -32,9 +32,9 @@ pub struct PositionOptions {
     /// High accuracy mode (such as GPS, if available)
     /// Will be ignored on Android 12+ if users didn't grant the ACCESS_FINE_LOCATION permission.
     pub enable_high_accuracy: bool,
-    /// The maximum wait time in milliseconds for location updates.
+    /// The maximum wait time in milliseconds for location updates or getting a position.
     /// Default: 10000
-    /// On Android the timeout gets ignored for getCurrentPosition.
+    /// 
     /// Ignored on iOS.
     // TODO: Handle Infinity and default to it.
     // TODO: Should be u64+ but specta doesn't like that?
@@ -45,6 +45,15 @@ pub struct PositionOptions {
     // TODO: Handle Infinity.
     // TODO: Should be u64+ but specta doesn't like that?
     pub maximum_age: u32,
+    /// Uses Google Play Location API or Android Framework Location API to get current position.
+    /// Default: true
+    /// Only Available for getCurrentPosition on Android.
+    #[serde(default = "default_true")]
+    pub use_gms: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

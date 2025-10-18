@@ -79,8 +79,8 @@ export type PositionOptions = {
    */
   enableHighAccuracy: boolean
   /**
-   * The maximum wait time in milliseconds for location updates.
-   * On Android the timeout gets ignored for getCurrentPosition.
+   * The maximum wait time in milliseconds for location updates or getting a position.
+  * 
    * Ignored on iOS
    */
   timeout: number
@@ -90,6 +90,12 @@ export type PositionOptions = {
    * Ignored on iOS
    */
   maximumAge: number
+  /**
+   * Uses Google Play Location API or Android Framework Location API to get current position.
+   * Default: true
+   * Only Available for getCurrentPosition on Android.
+   */
+  useGMS?: boolean
 }
 
 export async function watchPosition(
