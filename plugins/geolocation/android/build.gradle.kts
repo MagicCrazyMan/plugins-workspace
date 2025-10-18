@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "app.tauri.geolocation"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 24        
