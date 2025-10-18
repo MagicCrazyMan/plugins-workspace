@@ -59,3 +59,6 @@ pids
 debug.log
 TODO.md
 .aider.*
+
+# allow geolocation/dist-js to be included to make pnpm works properly
+!plugins/geolocation/dist-js
